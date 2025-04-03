@@ -1,0 +1,425 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>QuickQty</title>
+    <style>
+        .container { 
+            max-width: 1200px; 
+            margin: 20px auto; 
+            font-family: Arial, sans-serif;
+        }
+        .selector-group { 
+            display: flex; 
+            gap: 20px; 
+            margin-bottom: 20px; 
+        }
+        .db-select {
+            border: 2px solid #FF4444;
+            padding: 8px 15px;
+            min-width: 250px;
+            background: #FFF3F3;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        datalist {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: center;
+            background: white;
+        }
+        .dim-header { 
+            background: #f8f9fa; 
+        }
+        .input-cell input {
+            width: 80px;
+            padding: 4px;
+            border: 2px solid #FFFF99;
+            background: #FFFFF3;
+            text-align: center;
+        }
+        .input-cell input.carton-dimension {
+            border: 2px solid #FFFF99;
+            background: #FFF3F3;
+        }
+        .negative { 
+            color: #FF4444; 
+            font-weight: bold;
+        }
+        .total-row { 
+            background: #e3f2fd; 
+            font-weight: bold;
+        }
+        #headerInfo {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="selector-group">
+            <input id="containerInput" class="db-select" list="containerList" 
+                   placeholder="Input or Select Carton"
+                   autocomplete="off">
+            <datalist id="containerList"></datalist>
+
+            <input id="modelInput" class="db-select" list="modelList" 
+                   placeholder="Input or Select Box"
+                   autocomplete="off">
+            <datalist id="modelList"></datalist>
+        </div>
+
+        <div id="headerInfo" style="display:none;">
+            <h3><span id="currentContainer"></span> + <span id="currentModel"></span></h3>
+            <p>Carton Dim.：<span id="containerSize"></span> (Volume：<span id="containerVolume"></span>m³)</p>
+            <p>Box Dim.：<span id="modelSize"></span></p>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2" class="dim-header">Dim</th>
+                    <th rowspan="2" class="dim-header">Box</th>
+                    <th rowspan="2" class="dim-header">Carton</th>
+                    <th>LWH</th>
+                    <th>LHW</th>
+                    <th>WLH</th>
+                    <th>WHL</th>
+                    <th>HLW</th>
+                    <th>HWL</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+    </div>
+
+<script>
+// 数据库
+const CONTAINER_DB = {
+    "18.0 * 17.8 * 15.5": { dimensions: [18.0, 17.8, 15.5], volume: 0.99324 },
+    "28.4*18.6*11.2": {        dimensions: [28.4, 18.6, 11.2],        volume: 1.1832576    },
+    "35.9*10.6*22.0": {        dimensions: [35.9, 10.6, 22.0],        volume: 1.674376    },
+    "27.6*17.2*18.4": {        dimensions: [27.6, 17.2, 18.4],        volume: 1.7469696    },
+    "27.3*23.8*14.9": {        dimensions: [27.3, 23.8, 14.9],        volume: 1.9362252    },
+    "28.8*22.3*16.1": {        dimensions: [28.8, 22.3, 16.1],        volume: 2.0680128    },
+    "36.1*19.3*14.9": {        dimensions: [36.1, 19.3, 14.9],        volume: 2.0762554    },
+    "35.9*19.4*22.0": {        dimensions: [35.9, 19.4, 22.0],        volume: 3.064424    },
+    "32.3*27.4*25.5": {        dimensions: [32.3, 27.4, 25.5],        volume: 4.513602    },
+    "44.5*26.0*21.2": {        dimensions: [44.5, 26.0, 21.2],        volume: 4.90568    },
+    "41.5*35.5*18.5": {        dimensions: [41.5, 35.5, 18.5],        volume: 5.451025    },
+    "39.2*27.3*25.5": {        dimensions: [39.2, 27.3, 25.5],        volume: 5.457816    },
+    "40.5*32.5*21.0": {        dimensions: [40.5, 32.5, 21.0],        volume: 5.52825    },
+    "42.5*35.0*21.5": {        dimensions: [42.5, 35.0, 21.5],        volume: 6.39625    },
+    "46.7*29.7*23.1": {        dimensions: [46.7, 29.7, 23.1],        volume: 6.4078938    },
+    "43.5*37.5*20.0": {        dimensions: [43.5, 37.5, 20.0],        volume: 6.525    },
+    "37.2*34.8*27.6": {        dimensions: [37.2, 34.8, 27.6],        volume: 7.1459712    },
+    "45.2*36.1*22.9": {        dimensions: [45.2, 36.1, 22.9],        volume: 7.4732776    },
+    "44.0*41.0*21.0": {        dimensions: [44.0, 41.0, 21.0],        volume: 7.5768    },
+    "40.8*32.6*28.6": {        dimensions: [40.8, 32.6, 28.6],        volume: 7.6080576    },
+    "57.0*30.7*22.2": {        dimensions: [57.0, 30.7, 22.2],        volume: 7.769556    },
+    "44.0*43.0*22.0": {        dimensions: [44.0, 43.0, 22.0],        volume: 8.3248    },
+    "44.4*37.4*24.3": {        dimensions: [44.4, 37.4, 24.3],        volume: 8.0703216    },
+    "59.6*31.0*25.8": {        dimensions: [59.6, 31.0, 25.8],        volume: 9.533616    },
+    "38.5*35.5*36.0": {        dimensions: [38.5, 35.5, 36.0],        volume: 9.8406    },
+    "44.5*31.0*37.0": {        dimensions: [44.5, 31.0, 37.0],        volume: 10.2083    },
+    "57.0*29.0*31.5": {        dimensions: [57.0, 29.0, 31.5],        volume: 10.4139    },
+    "41.5*35.5*36.5": {        dimensions: [41.5, 35.5, 36.5],        volume: 10.754725    },
+    "44.5*31.6*41.0": {        dimensions: [44.5, 31.6, 41.0],        volume: 11.53084    },
+    "45.2*40.8*32.2": {        dimensions: [45.2, 40.8, 32.2],        volume: 11.8763904    },
+    "57.0*31.5*33.5": {        dimensions: [57.0, 31.5, 33.5],        volume: 12.02985    },
+    "42.2*35.9*41.7": {        dimensions: [42.2, 35.9, 41.7],        volume: 12.6349332    },
+    "45.0*35.5*41.0": {        dimensions: [45.0, 35.5, 41.0],        volume: 13.0995    },
+    "65.5*29.0*35.1": {        dimensions: [65.5, 29.0, 35.1],        volume: 13.33449    },
+    "64.0*31.5*34.0": {        dimensions: [64.0, 31.5, 34.0],        volume: 13.7088    },
+    "41.1*37.1*50.6": {        dimensions: [41.1, 37.1, 50.6],        volume: 15.4310772    },
+    "45.0*40.5*50.0": {        dimensions: [45.0, 40.5, 50.0],        volume: 18.225    },
+    "28.2*28.2*27.9": {        dimensions: [28.2, 28.2, 27.9],        volume: 4.4374392    },
+    "27.2*27.2*26.4": {        dimensions: [27.2, 27.2, 26.4],        volume: 3.9063552    },
+    "53.0*40.2*33.0": {        dimensions: [53.0, 40.2, 33.0],        volume: 14.06196    },
+    "52.4*47.5*32.5": {        dimensions: [52.4, 47.5, 32.5],        volume: 16.1785    },
+    "45.7*40.2*46.5": {        dimensions: [45.7, 40.2, 46.5],        volume: 17.085402    },
+    "48.1*33.9*14.4": {        dimensions: [48.1, 33.9, 14.4],        volume: 4.6960992    },
+    "38.8*28.0*27.4": {        dimensions: [38.8, 28.0, 27.4],        volume: 5.953472    },
+    "64.0*31.5*27.0": {        dimensions: [64.0, 31.5, 27.0],        volume: 10.8864    },
+    "49.9*32.5*28.7": {        dimensions: [49.9, 32.5, 28.7],        volume: 9.308845    },
+    "46.3*22.7*38.5": {        dimensions: [46.3, 22.7, 38.5],        volume: 8.092777    },
+    "42.9*31.5*35.3": {        dimensions: [42.9, 31.5, 35.3],        volume: 9.540531    },
+    "40.2*38.6*36.8": {        dimensions: [40.2, 38.6, 36.8],        volume: 11.4206592    },
+    "60.0*37.0*32.0": {        dimensions: [60.0, 37.0, 32.0],        volume: 14.208    },
+    "59.1*32.1*36.7": {        dimensions: [59.1, 32.1, 36.7],        volume: 13.9247874    },
+    "38.1*38.1*22.7": {        dimensions: [38.1, 38.1, 22.7],        volume: 6.5903094    },
+    "46.2*27.9*27.5": {        dimensions: [46.2, 27.9, 27.5],        volume: 7.08939    },
+    "41.8*35.7*22.9": {        dimensions: [41.8, 35.7, 22.9],        volume: 6.8345508    },
+    "43.8*38.0*18.2": {        dimensions: [43.8, 38.0, 18.2],        volume: 6.058416    },
+    "32.2*32.2*30.0": {        dimensions: [32.2, 32.2, 30.0],        volume: 6.22104    },
+    "45.0*38.6*23.0": {        dimensions: [45.0, 38.6, 23.0],        volume: 7.9902    },
+    "26.4*18.7*14.1": {        dimensions: [26.4, 18.7, 14.1],        volume: 1.3921776    },
+    "52.2*36.5*29.2": {        dimensions: [52.2, 36.5, 29.2],        volume: 11.126952    },
+    "45.9*39.5*26.0": {        dimensions: [45.9, 39.5, 26.0],        volume: 9.42786    },
+    "23.2*21.3*14.1": {        dimensions: [23.2, 21.3, 14.1],        volume: 1.3935312    },
+    "37.6*19.3*14.9": {        dimensions: [37.6, 19.3, 14.9],        volume: 2.1625264    },
+    "54.2*37.0*27.6": {        dimensions: [54.2, 37.0, 27.6],        volume: 11.069808    },
+    "27.3*23.8*14.9": {        dimensions: [27.3, 23.8, 14.9],        volume: 1.9362252    },
+    "40.2*35.2*28.4": {        dimensions: [40.2, 35.2, 28.4],        volume: 8.0374272    },
+    "34.6*29.7*45.6": {        dimensions: [34.6, 29.7, 45.6],        volume: 9.3718944    },
+    "41.7 * 29.4 * 45.7": { dimensions: [41.7, 29.4, 45.7], volume: 11.2054572 }
+};
+
+const MODEL_DB = {
+    "085白盒:7.90 * 6.30 * 5.00": [7.90, 6.30, 5.00],
+    "073白盒:9.30*8.10*6.60": [9.30, 8.10, 6.60],
+    "087白盒:9.40*8.60*8.00": [9.40, 8.60, 8.00],
+    "CW073白盒2:11.4*8.60*7.20": [11.4, 8.60, 7.20],
+    "086白盒/CW086彩盒2:12.2*8.60*9.20": [12.2, 8.60, 9.20],
+    "635白盒:12.7*10.2*9.10": [12.7, 10.2, 9.10],
+    "CW635白盒2:12.8*11.4*7.20": [12.8, 11.4, 7.20],
+    "635飞机盒白盒:14.1*10.2*9.00": [14.1, 10.2, 9.00],
+    "DW697白盒:12.8*15.4*7.70": [12.8, 15.4, 7.70],
+    "CW636白盒:15.7*5.20*4.70": [15.7, 5.20, 4.70],
+    "634黑白盒/634白盒:21.5*6.80*4.20": [21.5, 6.80, 4.20],
+    "3.5白盒:15.9*12.2*9.70": [15.9, 12.2, 9.70],
+    "10米线白盒2:16.2*12.7*5.40": [16.2, 12.7, 5.40],
+    "20米线白盒:17.4*17.0*7.20": [17.4, 17.0, 7.20],
+    "WR096白盒:22.3*17.8*4.10": [22.3, 17.8, 4.10],
+    "MO144飞机盒白盒:30.8*18.3*6.40": [30.8, 18.3, 6.40],
+    "5寸飞机盒:29.8*17.3*8.60": [29.8, 17.3, 8.60],
+    "7寸飞机盒:34.2*19.3*8.60": [34.2, 19.3, 8.60],
+    "MO115飞机盒:34.2*19.4*10.0": [34.2, 19.4, 10.0],
+    "5寸白套盒:27.2*18.2*14.7": [27.2, 18.2, 14.7],
+    "7寸白套盒:29.8*20.6*16.2": [29.8, 20.6, 16.2],
+    "MO149飞机盒白盒:29.9*21.4*12.8": [29.9, 21.4, 12.8],
+    "DW671飞机盒白盒:30.8*24.1*12.9": [30.8, 24.1, 12.9],
+    "9寸飞机盒白盒:39.1*23.8*8.60": [39.1, 23.8, 8.60],
+    "9寸白套盒:39.1*23.8*11.6": [39.1, 23.8, 11.6],
+    "BV060白盒:33.1*35.0*12.4": [33.1, 35.0, 12.4],
+    "ADA10白盒:29.2*11.4*11.4": [29.2, 11.4, 11.4],
+    "MU317白盒:17.0*11.4*7.70": [17.0, 11.4, 7.70],
+    "MU317白盒2:17.2*11.4*9.70": [17.2, 11.4, 9.70],
+    "AC509白盒2:22.3*12.8*12.2": [22.3, 12.8, 12.2],
+    "MU318飞机盒白盒:18.2*15.5*9.20": [18.2, 15.5, 9.20],
+    "拖车线包装盒/641白盒:29.2*25.0*11.5": [29.2, 25.0, 11.5],
+    "CW670白盒:21.5*13.9*5.20": [21.5, 13.9, 5.20],
+    "062白盒2:11.2*11.2*8.70": [11.2, 11.2, 8.70],
+    "HD254飞机盒白盒:41.0*26.2*9.70": [41.0, 26.2, 9.70],
+    "AC509白盒:17.8*17.2*12.2": [17.8, 17.2, 12.2],
+    "CW660黑白盒/CW660白盒:27.7*20.0*10.7": [27.7, 20.0, 10.7],
+    "封口袋:24.0*18.0*1.00": [24.0, 18.0, 1.00],
+    "封口袋:29.0*23.0*1.00": [29.0, 23.0, 1.00],
+    "CW664飞机盒白盒:23.2*15.5*10.2": [23.2, 15.5, 10.2],
+    "CW661黑白盒:15.6*11.3*7.60": [15.6, 11.3, 7.60],
+    "延长线白盒2:16.8*9.60*7.70": [16.8, 9.60, 7.70],
+    "10-18#线白盒:22.0*21.8*7.60": [22.0, 21.8, 7.60],
+    "AC539双插盒白盒:8.45*8.45*1.05": [8.45, 8.45, 1.05],
+    "中控白盒:17.0*11.4*7.20": [17.0, 11.4, 7.20],
+    "FHD073彩盒3/FHD406彩盒:16.9*15.6*6.70": [16.9, 15.6, 6.70],
+    "HD251D/HD252D白盒:34.5*11.2*6.60": [34.5, 11.2, 6.60],
+    "687飞机盒:21.5*7.60*4.10": [21.5, 7.60, 4.10],
+    "1.2M标定布:32.0*22.0*4.60": [32.0, 22.0, 4.60],
+    "20米线白盒大:19.2*17.0*7.20": [19.2, 17.0, 7.20],
+    "变压器:12.5*8.00*6.00": [12.5, 8.00, 6.00],
+    "DV426系统白盒:37.0*25.9*12.5": [37.0, 25.9, 12.5],
+    "MO700127系统白盒:29.0*27.4*19.5": [29.0, 27.4, 19.5],
+    "F01支架，HD250万向支架:12.5*12.5*11.0": [12.5, 12.5, 11.0],
+    "AC509白盒3:17.8*17.7*12.2": [17.8, 17.7, 12.2],
+    "CW642飞机盒白盒-V04:58.9*18.3*6.10": [58.9, 18.3, 6.10],
+    "HD110252DC:35.0*12.0*8.00": [35.0, 12.0, 8.00],
+    "HD297白盒:38.8*29.2*8.60": [38.8, 29.2, 8.60],
+    "HD299系统白盒:37.2*32.4*14.2": [37.2, 32.4, 14.2],
+    "FHD832白盒:16.2*10.5*5.00": [16.2, 10.5, 5.00],
+    "DV466飞机盒黑白盒:19.0*17.2*4.40": [19.0, 17.2, 4.40],
+    "AC617白盒:9.30*8.10*4.10": [9.30, 8.10, 4.10],
+    "FHD410黑白盒2:16.2*12.7*6.40": [16.2, 12.7, 6.40],
+    "HDW845白盒:37.0*18.0*19.0": [37.0, 18.0, 19.0],
+    "DV466飞机盒黑白盒-V01:22.0*17.2*4.40": [22.0, 17.2, 4.40],
+    "HD410白盒3:8.40*7.10*5.40": [8.40, 7.10, 5.40],
+    "变压器白盒:10.0*6.00*9.00": [10.0, 6.00, 9.00],
+    "CW655飞机盒白盒:15.0*9.40*8.40": [15.0, 9.40, 8.40],
+    "CW635飞机盒白盒:29.2*13.0*7.40": [29.2, 13.0, 7.40],
+    "变压器2:12.5*7.50*6.00": [12.5, 7.50, 6.00],
+    "AC608来料盒:34.2*25.5*11.5": [34.2, 25.5, 11.5],
+    "086白盒2:12.2*8.60*10.0": [12.2, 8.60, 10.0],
+    "CW667飞机盒白盒:32.6 * 28.0 * 10.6": [32.6, 28.0, 10.6]
+};
+
+// 初始化数据列表
+function initDatalist() {
+    const containerList = document.getElementById('containerList');
+    Object.keys(CONTAINER_DB).forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        containerList.appendChild(option);
+    });
+
+    const modelList = document.getElementById('modelList');
+    Object.keys(MODEL_DB).forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        modelList.appendChild(option);
+    });
+}
+
+// 输入验证
+function validateInput() {
+    const containerValid = CONTAINER_DB[document.getElementById('containerInput').value];
+    const modelValid = MODEL_DB[document.getElementById('modelInput').value];
+    
+    document.getElementById('containerInput').style.borderColor = containerValid ? '#FF4444' : '#ff0000';
+    document.getElementById('modelInput').style.borderColor = modelValid ? '#FF4444' : '#ff0000';
+    
+    if (containerValid && modelValid) {
+        updateCalculation();
+        document.getElementById('headerInfo').style.display = 'block';
+    } else {
+        document.getElementById('headerInfo').style.display = 'none';
+    }
+}
+
+// 核心计算逻辑
+function generatePermutations(arr) {
+    return [
+        [arr[0], arr[1], arr[2]],
+        [arr[0], arr[2], arr[1]],
+        [arr[1], arr[0], arr[2]],
+        [arr[1], arr[2], arr[0]],
+        [arr[2], arr[0], arr[1]],
+        [arr[2], arr[1], arr[0]]
+    ];
+}
+
+function calculateDimension(container, product) {
+    const quantity = Math.floor(container / product);
+    const difference = (product * quantity - container).toFixed(1);
+    return { quantity, difference };
+}
+
+function updateCalculation() {
+    const containerKey = document.getElementById('containerInput').value;
+    const modelKey = document.getElementById('modelInput').value;
+    
+    const containerData = CONTAINER_DB[containerKey];
+    const modelDims = MODEL_DB[modelKey];
+    
+    // 更新头部信息
+    document.getElementById('currentContainer').textContent = containerKey;
+    document.getElementById('currentModel').textContent = modelKey.split(':')[0];
+    document.getElementById('containerSize').textContent = 
+        containerData.dimensions.join(' × ');
+    document.getElementById('containerVolume').textContent = containerData.volume;
+    document.getElementById('modelSize').textContent = modelDims.join(' × ');
+
+    // 生成计算结果
+    const permutations = generatePermutations(modelDims);
+    const [L, W, H] = containerData.dimensions;
+    
+    const results = permutations.map(([l, w, h]) => {
+        const length = calculateDimension(L, l);
+        const width = calculateDimension(W, w);
+        const height = calculateDimension(H, h);
+        
+        return {
+            length,
+            width,
+            height,
+            total: length.quantity * width.quantity * height.quantity
+        };
+    });
+
+    // 构建表格
+    const template = `
+        <tr>
+            <td rowspan="2">Length</td>
+            <td class="input-cell"><input value="${modelDims[0]}" onchange="updateModelData()"></td>
+            <td class="input-cell"><input class="carton-dimension" value="${L.toFixed(1)}" onchange="updateContainerData()"></td>
+            ${results.map(r => `<td>${r.length.quantity}</td>`).join('')}
+        </tr>
+        <tr>
+            <td colspan="2">Gap</td>
+            ${results.map(r => `<td class="${r.length.difference < 0 ? 'negative' : ''}">${r.length.difference}</td>`).join('')}
+        </tr>
+
+        <tr>
+            <td rowspan="2">Width</td>
+            <td class="input-cell"><input value="${modelDims[1]}" onchange="updateModelData()"></td>
+            <td class="input-cell"><input class="carton-dimension" value="${W.toFixed(1)}" onchange="updateContainerData()"></td>
+            ${results.map(r => `<td>${r.width.quantity}</td>`).join('')}
+        </tr>
+        <tr>
+            <td colspan="2">Gap</td>
+            ${results.map(r => `<td class="${r.width.difference < 0 ? 'negative' : ''}">${r.width.difference}</td>`).join('')}
+        </tr>
+
+        <tr>
+            <td rowspan="2">Height</td>
+            <td class="input-cell"><input value="${modelDims[2]}" onchange="updateModelData()"></td>
+            <td class="input-cell"><input class="carton-dimension" value="${H.toFixed(1)}" onchange="updateContainerData()"></td>
+            ${results.map(r => `<td>${r.height.quantity}</td>`).join('')}
+        </tr>
+        <tr>
+            <td colspan="2">Gap</td>
+            ${results.map(r => `<td class="${r.height.difference < 0 ? 'negative' : ''}">${r.height.difference}</td>`).join('')}
+        </tr>
+
+        <tr class="total-row">
+            <td colspan="3">Total</td>
+            ${results.map(r => `<td>${r.total}</td>`).join('')}
+        </tr>
+    `;
+
+    document.getElementById('resultBody').innerHTML = template;
+}
+
+// 实时更新模型数据
+function updateModelData() {
+    const inputs = Array.from(document.querySelectorAll('#resultBody .input-cell:not(.carton-dimension) input'))
+                      .map(i => parseFloat(i.value));
+    
+    const modelKey = document.getElementById('modelInput').value;
+    MODEL_DB[modelKey] = inputs;
+    updateCalculation();
+}
+
+// 实时更新Carton数据
+function updateContainerData() {
+    const containerKey = document.getElementById('containerInput').value;
+    if (!containerKey || !CONTAINER_DB[containerKey]) return;
+    
+    const cartonInputs = document.querySelectorAll('#resultBody .carton-dimension');
+    const newDims = Array.from(cartonInputs).map(input => parseFloat(input.value));
+    
+    // 更新Carton的dimensions和volume
+    CONTAINER_DB[containerKey].dimensions = newDims;
+    const volume = (newDims[0] * newDims[1] * newDims[2]) / 1000000; // 假设单位是厘米
+    CONTAINER_DB[containerKey].volume = volume.toFixed(6);
+    
+    // 更新header中的信息
+    document.getElementById('containerSize').textContent = newDims.join(' × ');
+    document.getElementById('containerVolume').textContent = CONTAINER_DB[containerKey].volume;
+    
+    // 重新计算并渲染表格
+    updateCalculation();
+}
+
+// 初始化事件监听
+window.onload = () => {
+    initDatalist();
+    
+    // 添加输入监听
+    document.getElementById('containerInput').addEventListener('input', validateInput);
+    document.getElementById('modelInput').addEventListener('input', validateInput);
+};
+</script>
+</body>
+</html>
